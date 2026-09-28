@@ -4,6 +4,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function allowedUser() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && request.auth.token.email in [
           'jorgearthur100@gmail.com',
           'vitoria.castor.55@gmail.com'
