@@ -51,6 +51,7 @@ button{border:0;cursor:pointer}
 
 .auth-gate{position:fixed;inset:0;z-index:500;background:radial-gradient(circle at 15% 10%,rgba(0,122,255,.14),transparent 30%),radial-gradient(circle at 90% 20%,rgba(175,82,222,.10),transparent 28%),#f5f5f7;display:grid;place-items:center;padding:22px}
 .auth-gate.hidden{display:none!important}.auth-card{width:min(430px,100%);background:rgba(255,255,255,.88);backdrop-filter:blur(28px);border:1px solid var(--line);border-radius:28px;padding:30px;box-shadow:0 24px 70px rgba(0,0,0,.12);text-align:center}.auth-logo{width:64px;height:64px;border-radius:20px;margin:0 auto 17px;background:linear-gradient(145deg,#0a84ff,#5e5ce6);display:grid;place-items:center;color:#fff;font-size:30px;box-shadow:0 12px 28px rgba(0,122,255,.22)}.auth-card h2{margin:0;font-size:25px;letter-spacing:-.035em}.auth-card p{color:var(--muted);font-size:13px;line-height:1.55;margin:9px 0 20px}.auth-error{display:none;margin-top:14px;padding:11px 12px;border-radius:12px;background:rgba(255,59,48,.10);color:#b42318;font-size:12px;text-align:left;line-height:1.45}.auth-error.on{display:block}.user-chip{font-size:11px;color:var(--muted);padding:8px 10px;border-radius:10px;background:rgba(118,118,128,.08);max-width:210px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cloud-badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;color:var(--green);font-weight:700;margin-left:6px}.cloud-badge i{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.auth-fields{display:grid;gap:10px;margin-top:4px;text-align:left}.auth-fields label{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:-4px}.auth-fields input{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--text);outline:0}.auth-fields input:focus{border-color:rgba(0,122,255,.55);box-shadow:0 0 0 3px rgba(0,122,255,.10)}.auth-actions{display:grid;gap:8px;margin-top:14px}.auth-links{display:flex;justify-content:center;gap:16px;margin-top:12px;flex-wrap:wrap}.auth-link{background:none;color:var(--blue);font-size:12px;padding:2px}.auth-note{margin-top:12px!important;font-size:11px!important}.auth-success{display:none;margin-top:14px;padding:11px 12px;border-radius:12px;background:rgba(52,199,89,.10);color:#1c7c3a;font-size:12px;text-align:left;line-height:1.45}.auth-success.on{display:block}
 @media(max-width:700px){.user-chip{display:none}}
 </style>
 </head>
@@ -59,8 +60,23 @@ button{border:0;cursor:pointer}
   <div class="auth-card">
     <div class="auth-logo">⌁</div>
     <h2>Finanças</h2>
-    <p>Jorge & Vitória · dados sincronizados em tempo real.<br>Entre com uma das contas Google autorizadas.</p>
-    <button class="btn btn-primary" style="width:100%;padding:12px 16px" onclick="signInGoogle()">Entrar com Google</button>
+    <p>Jorge & Vitória · dados sincronizados em tempo real entre computador e celular.</p>
+    <div class="auth-fields">
+      <label for="authEmail">E-mail</label>
+      <input id="authEmail" type="email" autocomplete="username" placeholder="seuemail@gmail.com" />
+      <label for="authPassword">Senha</label>
+      <input id="authPassword" type="password" autocomplete="current-password" placeholder="Sua senha" onkeydown="if(event.key==='Enter')signInEmail()" />
+    </div>
+    <div class="auth-actions">
+      <button class="btn btn-primary" style="width:100%;padding:12px 16px" onclick="signInEmail()">Entrar</button>
+      <button class="btn btn-ghost" style="width:100%;padding:11px 16px" onclick="createEmailAccess()">Criar meu acesso</button>
+    </div>
+    <div class="auth-links">
+      <button class="auth-link" onclick="resetPassword()">Esqueci minha senha</button>
+      <a class="auth-link" href="privacidade.html" target="_blank" rel="noopener">Privacidade</a>
+    </div>
+    <p class="auth-note">Apenas os dois e-mails autorizados podem acessar esta base.</p>
+    <div class="auth-success" id="authSuccess"></div>
     <div class="auth-error" id="authError"></div>
   </div>
 </div>
@@ -210,8 +226,6 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const fbAuth=firebase.auth();
 const fbDb=firebase.firestore();
 fbDb.settings({ignoreUndefinedProperties:true});
-const googleProvider=new firebase.auth.GoogleAuthProvider();
-googleProvider.setCustomParameters({prompt:'select_account'});
 const CATS=['Moradia','Alimentação','Transporte','Saúde','Lazer','Educação','Assinaturas','Impostos','Outros'];
 const CAT_COLORS={'Moradia':'#007aff','Alimentação':'#ff9500','Transporte':'#30b0c7','Saúde':'#34c759','Lazer':'#af52de','Educação':'#5856d6','Assinaturas':'#ff2d55','Impostos':'#8e8e93','Outros':'#a2845e','Faturas':'#5e5ce6'};
 const MONTHS=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -364,11 +378,70 @@ function exportBackup(){const blob=new Blob([JSON.stringify(state,null,2)],{type
 function importBackup(ev){const f=ev.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const data=normalizeState(JSON.parse(r.result));if(!confirm('Substituir a base compartilhada pelo backup selecionado?'))return;state=data;await migrateStateToCloud(state);toast('Backup importado e sincronizado.','good');closeModal('settingsModal')}catch(e){console.error(e);toast('Arquivo de backup inválido ou falha ao sincronizar.','bad')}};r.readAsText(f)}
 function seedDefaults(s){s=normalizeState(s);if(s.templates.accounts.length||s.templates.cards.length||s.templates.incomes.length||Object.keys(s.months).length)return s;const key=thisMonthKey();s.templates.accounts=[{id:uid(),name:'Financiamento — Caixa',category:'Moradia',person:'Casal',defaultValue:0,dueDay:10,startMonth:key},{id:uid(),name:'Condomínio',category:'Moradia',person:'Casal',defaultValue:0,dueDay:10,startMonth:key},{id:uid(),name:'Energia — Light',category:'Moradia',person:'Casal',defaultValue:0,dueDay:10,startMonth:key},{id:uid(),name:'Gás — Naturgy',category:'Moradia',person:'Casal',defaultValue:0,dueDay:10,startMonth:key},{id:uid(),name:'Internet — Claro',category:'Assinaturas',person:'Casal',defaultValue:0,dueDay:10,startMonth:key}];s.templates.cards=[{id:uid(),name:'Nubank — Vitória',dueDay:10,startMonth:key},{id:uid(),name:'Nubank — Jorge',dueDay:10,startMonth:key},{id:uid(),name:'Inter — Jorge',dueDay:10,startMonth:key},{id:uid(),name:'Caju — Jorge',dueDay:1,startMonth:key}];s.templates.incomes=[{id:uid(),desc:'Receita — Jorge',defaultValue:2712.66,day:5,person:'Jorge',type:'Salário',startMonth:key},{id:uid(),desc:'Receita — Vitória',defaultValue:1770.31,day:5,person:'Vitória',type:'Salário',startMonth:key}];state=s;suppressCloud=true;ensureMonth(key);suppressCloud=false;return s}
 async function migrateStateToCloud(data){const d=normalizeState(data);state=d;const batch=fbDb.batch();batch.set(metaRef(),{version:2,settings:d.settings,templates:d.templates,...audit()});Object.entries(d.months).forEach(([key,m])=>batch.set(monthsRef().doc(key),{accounts:m.accounts||[],cards:m.cards||[],daily:m.daily||[],incomes:m.incomes||[],...audit()}));await batch.commit()}
-function showAuthError(msg){const el=document.getElementById('authError');if(!el)return;el.textContent=msg;el.classList.add('on');document.getElementById('authGate').classList.remove('hidden')}
-function clearAuthError(){const el=document.getElementById('authError');if(el){el.textContent='';el.classList.remove('on')}}
-async function signInGoogle(){clearAuthError();try{await fbAuth.signInWithPopup(googleProvider)}catch(e){console.error(e);if(e.code==='auth/unauthorized-domain')showAuthError('Este domínio ainda não está autorizado no Firebase Authentication. Adicione jorgearthur100-star.github.io em Authentication → Configurações → Domínios autorizados.');else showAuthError(e.message||'Não foi possível entrar com Google.')}}
+function showAuthError(msg){const el=document.getElementById('authError');if(!el)return;el.textContent=msg;el.classList.add('on');const ok=document.getElementById('authSuccess');if(ok)ok.classList.remove('on');document.getElementById('authGate').classList.remove('hidden')}
+function showAuthSuccess(msg){const el=document.getElementById('authSuccess');if(!el)return;el.textContent=msg;el.classList.add('on');const err=document.getElementById('authError');if(err)err.classList.remove('on')}
+function clearAuthMessages(){const err=document.getElementById('authError'),ok=document.getElementById('authSuccess');if(err){err.textContent='';err.classList.remove('on')}if(ok){ok.textContent='';ok.classList.remove('on')}}
+function authCredentials(){return{email:(document.getElementById('authEmail')?.value||'').trim().toLowerCase(),password:document.getElementById('authPassword')?.value||''}}
+function allowedEmail(email){return ALLOWED_EMAILS.includes(String(email||'').toLowerCase())}
+function friendlyAuthError(e){
+  const m={
+    'auth/invalid-credential':'E-mail ou senha incorretos.',
+    'auth/wrong-password':'E-mail ou senha incorretos.',
+    'auth/user-not-found':'Este acesso ainda não foi criado. Clique em “Criar meu acesso”.',
+    'auth/email-already-in-use':'Este e-mail já possui acesso. Use “Entrar” ou “Esqueci minha senha”.',
+    'auth/weak-password':'Use uma senha com pelo menos 6 caracteres.',
+    'auth/invalid-email':'Digite um e-mail válido.',
+    'auth/too-many-requests':'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+    'auth/network-request-failed':'Falha de conexão. Verifique sua internet.'
+  };
+  return m[e?.code]||e?.message||'Não foi possível concluir a autenticação.'
+}
+async function signInEmail(){
+  clearAuthMessages();const {email,password}=authCredentials();
+  if(!allowedEmail(email)){showAuthError('Este e-mail não está autorizado para acessar as finanças de Jorge & Vitória.');return}
+  if(!password){showAuthError('Digite sua senha.');return}
+  try{
+    const cred=await fbAuth.signInWithEmailAndPassword(email,password);
+    await cred.user.reload();
+    if(!cred.user.emailVerified){
+      await fbAuth.signOut();
+      showAuthError('Seu e-mail ainda não foi verificado. Abra a mensagem enviada pelo Firebase e confirme o endereço antes de entrar.');
+    }
+  }catch(e){console.error(e);showAuthError(friendlyAuthError(e))}
+}
+async function createEmailAccess(){
+  clearAuthMessages();const {email,password}=authCredentials();
+  if(!allowedEmail(email)){showAuthError('Somente os e-mails de Jorge e Vitória podem criar acesso.');return}
+  if(password.length<6){showAuthError('Crie uma senha com pelo menos 6 caracteres.');return}
+  try{
+    const cred=await fbAuth.createUserWithEmailAndPassword(email,password);
+    await cred.user.sendEmailVerification();
+    await fbAuth.signOut();
+    showAuthSuccess('Acesso criado. Enviamos um e-mail de verificação para '+email+'. Confirme o endereço e depois entre normalmente.');
+  }catch(e){console.error(e);showAuthError(friendlyAuthError(e))}
+}
+async function resetPassword(){
+  clearAuthMessages();const email=(document.getElementById('authEmail')?.value||'').trim().toLowerCase();
+  if(!allowedEmail(email)){showAuthError('Digite primeiro um dos e-mails autorizados.');return}
+  try{await fbAuth.sendPasswordResetEmail(email);showAuthSuccess('Enviamos o link para redefinir a senha para '+email+'.')}catch(e){console.error(e);showAuthError(friendlyAuthError(e))}
+}
 async function signOutApp(){disconnectDrive(false);await fbAuth.signOut();location.reload()}
-async function startCloud(user){currentUser=user;if(!ALLOWED_EMAILS.includes((user.email||'').toLowerCase())){await fbAuth.signOut();showAuthError('Esta conta Google não está autorizada para acessar as finanças de Jorge & Vitória.');return}clearAuthError();try{const [metaSnap,monthProbe]=await Promise.all([metaRef().get(),monthsRef().limit(1).get()]);if(!metaSnap.exists&&monthProbe.empty){let initial=loadLegacyState();initial=seedDefaults(initial);initial.settings.driveClientId=DRIVE_CLIENT_ID;await migrateStateToCloud(initial)}const metaNow=await metaRef().get();if(metaNow.exists){const d=metaNow.data();state.settings={...defaultState().settings,...(d.settings||{}),driveClientId:DRIVE_CLIENT_ID};state.templates={...defaultState().templates,...(d.templates||{})}}if(metaUnsub)metaUnsub();if(monthsUnsub)monthsUnsub();metaUnsub=metaRef().onSnapshot(s=>{if(!s.exists)return;const d=s.data();state.settings={...defaultState().settings,...(d.settings||{}),driveClientId:DRIVE_CLIENT_ID};state.templates={...defaultState().templates,...(d.templates||{})};if(cloudReady)renderAll()},cloudError);monthsUnsub=monthsRef().onSnapshot(q=>{const months={};q.forEach(doc=>{const d=doc.data();months[doc.id]={accounts:d.accounts||[],cards:d.cards||[],daily:d.daily||[],incomes:d.incomes||[]}});state.months=months;cloudReady=true;document.getElementById('authGate').classList.add('hidden');ensureMonth(thisMonthKey());document.getElementById('accCategory').innerHTML=catOptions('Moradia');document.getElementById('dailyCategory').innerHTML=catOptions('Alimentação');renderAll()},cloudError)}catch(e){console.error(e);if(e.code==='permission-denied')showAuthError('Login realizado, mas o Firestore ainda está bloqueado. Publique as regras de segurança para Jorge e Vitória e tente novamente.');else showAuthError(e.message||'Não foi possível conectar ao Firestore.')}}
+async function startCloud(user){
+  currentUser=user;
+  const email=(user.email||'').toLowerCase();
+  if(!allowedEmail(email)){await fbAuth.signOut();showAuthError('Este usuário não está autorizado para acessar as finanças de Jorge & Vitória.');return}
+  if(!user.emailVerified){await fbAuth.signOut();showAuthError('Confirme seu e-mail antes de acessar o app.');return}
+  clearAuthMessages();
+  try{
+    const [metaSnap,monthProbe]=await Promise.all([metaRef().get(),monthsRef().limit(1).get()]);
+    if(!metaSnap.exists&&monthProbe.empty){let initial=loadLegacyState();initial=seedDefaults(initial);initial.settings.driveClientId=DRIVE_CLIENT_ID;await migrateStateToCloud(initial)}
+    const metaNow=await metaRef().get();
+    if(metaNow.exists){const d=metaNow.data();state.settings={...defaultState().settings,...(d.settings||{}),driveClientId:DRIVE_CLIENT_ID};state.templates={...defaultState().templates,...(d.templates||{})}}
+    if(metaUnsub)metaUnsub();if(monthsUnsub)monthsUnsub();
+    metaUnsub=metaRef().onSnapshot(s=>{if(!s.exists)return;const d=s.data();state.settings={...defaultState().settings,...(d.settings||{}),driveClientId:DRIVE_CLIENT_ID};state.templates={...defaultState().templates,...(d.templates||{})};if(cloudReady)renderAll()},cloudError);
+    monthsUnsub=monthsRef().onSnapshot(q=>{const months={};q.forEach(doc=>{const d=doc.data();months[doc.id]={accounts:d.accounts||[],cards:d.cards||[],daily:d.daily||[],incomes:d.incomes||[]}});state.months=months;cloudReady=true;document.getElementById('authGate').classList.add('hidden');ensureMonth(thisMonthKey());document.getElementById('accCategory').innerHTML=catOptions('Moradia');document.getElementById('dailyCategory').innerHTML=catOptions('Alimentação');renderAll()},cloudError)
+  }catch(e){console.error(e);if(e.code==='permission-denied')showAuthError('Login realizado, mas o Firestore ainda está bloqueado. Publique as regras de segurança atualizadas e tente novamente.');else showAuthError(e.message||'Não foi possível conectar ao Firestore.')}
+}
 fbAuth.onAuthStateChanged(user=>{if(user)startCloud(user);else{currentUser=null;cloudReady=false;document.getElementById('authGate').classList.remove('hidden');document.getElementById('userChip').textContent='Não conectado'}});
 
 </script>
