@@ -405,8 +405,9 @@ async function signInEmail(){
     const cred=await fbAuth.signInWithEmailAndPassword(email,password);
     await cred.user.reload();
     if(!cred.user.emailVerified){
+      try{await cred.user.sendEmailVerification()}catch(sendErr){console.error('Falha ao reenviar verificação:',sendErr)}
       await fbAuth.signOut();
-      showAuthError('Seu e-mail ainda não foi verificado. Abra a mensagem enviada pelo Firebase e confirme o endereço antes de entrar.');
+      showAuthError('Seu e-mail ainda não foi verificado. Reenviamos agora uma nova mensagem de confirmação para '+email+'. Verifique também Spam, Lixo eletrônico e Promoções.');
     }
   }catch(e){console.error(e);showAuthError(friendlyAuthError(e))}
 }
