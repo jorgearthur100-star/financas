@@ -1,0 +1,17 @@
+{
+  "name": "Finanças — Jorge & Vitória",
+  "short_name": "Finanças",
+  "start_url": "/financas/",
+  "scope": "/financas/",
+  "display": "standalone",
+  "background_color": "#101012",
+  "theme_color": "#0a84ff",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
